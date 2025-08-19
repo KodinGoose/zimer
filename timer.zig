@@ -32,14 +32,12 @@ pub fn main() !void {
     var input_buffer = try std.heap.page_allocator.alloc(u8, 256);
     defer std.heap.page_allocator.free(input_buffer);
 
-    const help_text = "Press \"q\" to exit\r\n";
-    try std.io.getStdOut().writer().writeAll(help_text);
-    defer std.io.getStdOut().writer().writeAll([_]u8{ 0x1B, 'M' } ++ &[_]u8{0x08} ** help_text.len) catch {};
+    try std.io.getStdOut().writer().writeAll("Press \"q\" to exit\r\n");
+    defer std.io.getStdOut().writer().writeAll(&[_]u8{ 0x1B, 'M', 0x1B, '[', '2', 'K' }) catch {};
 
     try std.posix.tcsetattr(std.posix.STDIN_FILENO, .FLUSH, new_mode);
 
     const start_nanotime = std.time.nanoTimestamp();
-    var last_output_len: usize = 0;
     var exit = false;
     while (!exit) {
         const frame_start_time = std.time.nanoTimestamp();
@@ -58,21 +56,13 @@ pub fn main() !void {
                 @as(u128, @intCast(@abs(@mod(@divTrunc(passed_nanotime, std.time.ns_per_s), 60)))),
             });
             defer std.heap.page_allocator.free(print_buf);
-            last_output_len = print_buf.len;
             try std.io.getStdOut().writer().writeAll(print_buf);
         }
-        const frame_passed_time = std.time.nanoTimestamp() - frame_start_time;
+        // This division never results in a negative number unless the user sets the system clock back
+        const frame_passed_time = std.time.nanoTimestamp() -% frame_start_time;
         if (frame_passed_time < std.time.ns_per_ms * 10 and frame_passed_time >= 0) {
             std.Thread.sleep(std.time.ns_per_ms * 10 - @as(u64, @intCast(frame_passed_time)));
         }
-        {
-            const print_buf = try std.heap.page_allocator.alloc(u8, last_output_len);
-            defer std.heap.page_allocator.free(print_buf);
-            for (print_buf) |*char| {
-                char.* = 0x08;
-            }
-            try std.io.getStdOut().writer().writeAll(&[_]u8{ 0x1B, 'M' });
-            try std.io.getStdOut().writer().writeAll(print_buf);
-        }
+        try std.io.getStdOut().writer().writeAll(&[_]u8{ 0x1B, 'M', 0x1B, '[', '2', 'K' });
     }
 }
