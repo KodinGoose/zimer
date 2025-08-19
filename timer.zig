@@ -29,10 +29,14 @@ pub fn main() !void {
     new_mode.cc[@intFromEnum(std.posix.V.MIN)] = 0;
     new_mode.cc[@intFromEnum(std.posix.V.TIME)] = 0;
 
-    try std.posix.tcsetattr(std.posix.STDIN_FILENO, .FLUSH, new_mode);
-
     var input_buffer = try std.heap.page_allocator.alloc(u8, 256);
     defer std.heap.page_allocator.free(input_buffer);
+
+    const help_text = "Press \"q\" to exit\r\n";
+    try std.io.getStdOut().writer().writeAll(help_text);
+    defer std.io.getStdOut().writer().writeAll([_]u8{ 0x1B, 'M' } ++ &[_]u8{0x08} ** help_text.len) catch {};
+
+    try std.posix.tcsetattr(std.posix.STDIN_FILENO, .FLUSH, new_mode);
 
     const start_nanotime = std.time.nanoTimestamp();
     var last_output_len: usize = 0;
