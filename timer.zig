@@ -53,24 +53,25 @@ pub fn main() !void {
     while (!exit) {
         const frame_start_time = std.time.nanoTimestamp();
         while (true) {
-            var input_buffer: [256]u8 = undefined;
-            const bytes_read = try stdin.readSliceShort(&input_buffer);
-            for (input_buffer[0..bytes_read]) |char| {
+            var input_buf: [256]u8 = undefined;
+            const bytes_read = try stdin.readSliceShort(&input_buf);
+            for (input_buf[0..bytes_read]) |char| {
                 if (char == 'q' or char == 'Q') {
                     exit = true;
                 }
             }
             if (bytes_read < stdin_buf.len) break;
         }
-        const nanotime = std.time.nanoTimestamp();
-        const passed_nanotime = nanotime - start_nanotime;
+        const passed_nanotime = std.time.nanoTimestamp() - start_nanotime;
         {
-            const print_buf = try std.fmt.allocPrint(std.heap.page_allocator, "Time: {d}:{d:02}:{d:02}\r\n", .{
+            // The theoretical maximum amount of bytes the hours can take up is 26 bytes
+            // The length of the string minus the length of the hours is 14
+            var out_buf: [14 + 26]u8 = undefined;
+            const print_buf = std.fmt.bufPrint(&out_buf, "Time: {d}:{d:02}:{d:02}\r\n", .{
                 @as(u128, @intCast(@abs(@divTrunc(passed_nanotime, std.time.ns_per_hour)))),
                 @as(u128, @intCast(@abs(@mod(@divTrunc(passed_nanotime, std.time.ns_per_min), 60)))),
                 @as(u128, @intCast(@abs(@mod(@divTrunc(passed_nanotime, std.time.ns_per_s), 60)))),
-            });
-            defer std.heap.page_allocator.free(print_buf);
+            }) catch unreachable;
             try stdout.writeAll(print_buf);
         }
         // Flush output before sleeping
