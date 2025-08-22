@@ -43,9 +43,6 @@ pub fn main() !void {
     new_mode.cc[@intFromEnum(std.posix.V.MIN)] = 0;
     new_mode.cc[@intFromEnum(std.posix.V.TIME)] = 0;
 
-    var input_buffer = try std.heap.page_allocator.alloc(u8, 256);
-    defer std.heap.page_allocator.free(input_buffer);
-
     try stdout.writeAll("Press \"q\" to exit\r\n");
     defer stdout.writeAll(&[_]u8{ 0x1B, 'M', 0x1B, '[', '2', 'K' }) catch {};
 
@@ -56,7 +53,8 @@ pub fn main() !void {
     while (!exit) {
         const frame_start_time = std.time.nanoTimestamp();
         while (true) {
-            const bytes_read = try stdin.readSliceShort(input_buffer);
+            var input_buffer: [256]u8 = undefined;
+            const bytes_read = try stdin.readSliceShort(&input_buffer);
             for (input_buffer[0..bytes_read]) |char| {
                 if (char == 'q' or char == 'Q') {
                     exit = true;
