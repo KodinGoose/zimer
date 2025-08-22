@@ -49,9 +49,9 @@ pub fn main() !void {
     try std.posix.tcsetattr(std.posix.STDIN_FILENO, .FLUSH, new_mode);
 
     const start_nanotime = std.time.nanoTimestamp();
+    var frame_start_time = start_nanotime;
     var exit = false;
     while (!exit) {
-        const frame_start_time = std.time.nanoTimestamp();
         while (true) {
             var input_buf: [256]u8 = undefined;
             const bytes_read = try stdin.readSliceShort(&input_buf);
@@ -82,5 +82,6 @@ pub fn main() !void {
             std.Thread.sleep(std.time.ns_per_ms * 10 - @as(u64, @intCast(frame_passed_time)));
         }
         try stdout.writeAll(&[_]u8{ 0x1B, 'M', 0x1B, '[', '2', 'K' });
+        frame_start_time = std.time.nanoTimestamp();
     }
 }
