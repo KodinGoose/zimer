@@ -11,9 +11,9 @@ pub fn main() !void {
     const stderr = &stderr_writer.interface;
     defer stderr.flush() catch {};
 
-    // var stdin_buf: [4096]u8 = undefined;
-    // var stdin_reader = std.fs.File.stdin().reader(&stdin_buf);
-    // const stdin = &stdin_reader.interface;
+    var stdin_buf: [4096]u8 = undefined;
+    var stdin_reader = std.fs.File.stdin().reader(&stdin_buf);
+    const stdin = &stdin_reader.interface;
 
     const start_mode = try std.posix.tcgetattr(std.posix.STDIN_FILENO);
     defer std.posix.tcsetattr(std.posix.STDIN_FILENO, .FLUSH, start_mode) catch {
@@ -55,11 +55,14 @@ pub fn main() !void {
     var exit = false;
     while (!exit) {
         const frame_start_time = std.time.nanoTimestamp();
-        const bytes_read = try std.posix.read(std.posix.STDIN_FILENO, input_buffer);
-        for (input_buffer[0..bytes_read]) |char| {
-            if (char == 'q' or char == 'Q') {
-                exit = true;
+        while (true) {
+            const bytes_read = try stdin.readSliceShort(input_buffer);
+            for (input_buffer[0..bytes_read]) |char| {
+                if (char == 'q' or char == 'Q') {
+                    exit = true;
+                }
             }
+            if (bytes_read < stdin_buf.len) break;
         }
         const nanotime = std.time.nanoTimestamp();
         const passed_nanotime = nanotime - start_nanotime;
