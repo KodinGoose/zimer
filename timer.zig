@@ -1,9 +1,23 @@
 const std = @import("std");
 
 pub fn main() !void {
+    var stdout_buf: [4096]u8 = undefined;
+    var stdout_writer = std.fs.File.stdout().writer(&stdout_buf);
+    const stdout = &stdout_writer.interface;
+    defer stdout.flush() catch {};
+
+    var stderr_buf: [4096]u8 = undefined;
+    var stderr_writer = std.fs.File.stderr().writer(&stderr_buf);
+    const stderr = &stderr_writer.interface;
+    defer stderr.flush() catch {};
+
+    // var stdin_buf: [4096]u8 = undefined;
+    // var stdin_reader = std.fs.File.stdin().reader(&stdin_buf);
+    // const stdin = &stdin_reader.interface;
+
     const start_mode = try std.posix.tcgetattr(std.posix.STDIN_FILENO);
     defer std.posix.tcsetattr(std.posix.STDIN_FILENO, .FLUSH, start_mode) catch {
-        std.io.getStdErr().writeAll("Sowwy for scwewing up the tewminal\r\nType reset to get it back to nowmal\r\n") catch {};
+        stderr.writeAll("Sowwy for scwewing up the tewminal\r\nType reset to get it back to nowmal\r\n") catch {};
     };
     var new_mode = start_mode;
 
@@ -32,8 +46,8 @@ pub fn main() !void {
     var input_buffer = try std.heap.page_allocator.alloc(u8, 256);
     defer std.heap.page_allocator.free(input_buffer);
 
-    try std.io.getStdOut().writer().writeAll("Press \"q\" to exit\r\n");
-    defer std.io.getStdOut().writer().writeAll(&[_]u8{ 0x1B, 'M', 0x1B, '[', '2', 'K' }) catch {};
+    try stdout.writeAll("Press \"q\" to exit\r\n");
+    defer stdout.writeAll(&[_]u8{ 0x1B, 'M', 0x1B, '[', '2', 'K' }) catch {};
 
     try std.posix.tcsetattr(std.posix.STDIN_FILENO, .FLUSH, new_mode);
 
@@ -41,7 +55,7 @@ pub fn main() !void {
     var exit = false;
     while (!exit) {
         const frame_start_time = std.time.nanoTimestamp();
-        const bytes_read = try std.io.getStdIn().reader().read(input_buffer);
+        const bytes_read = try std.posix.read(std.posix.STDIN_FILENO, input_buffer);
         for (input_buffer[0..bytes_read]) |char| {
             if (char == 'q' or char == 'Q') {
                 exit = true;
@@ -56,13 +70,15 @@ pub fn main() !void {
                 @as(u128, @intCast(@abs(@mod(@divTrunc(passed_nanotime, std.time.ns_per_s), 60)))),
             });
             defer std.heap.page_allocator.free(print_buf);
-            try std.io.getStdOut().writer().writeAll(print_buf);
+            try stdout.writeAll(print_buf);
         }
+        // Flush output before sleeping
+        try stdout.flush();
         // This division never results in a negative number unless the user sets the system clock back
         const frame_passed_time = std.time.nanoTimestamp() -% frame_start_time;
         if (frame_passed_time < std.time.ns_per_ms * 10 and frame_passed_time >= 0) {
             std.Thread.sleep(std.time.ns_per_ms * 10 - @as(u64, @intCast(frame_passed_time)));
         }
-        try std.io.getStdOut().writer().writeAll(&[_]u8{ 0x1B, 'M', 0x1B, '[', '2', 'K' });
+        try stdout.writeAll(&[_]u8{ 0x1B, 'M', 0x1B, '[', '2', 'K' });
     }
 }
