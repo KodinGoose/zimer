@@ -51,7 +51,7 @@ pub fn main() !void {
     new_mode.lflag.ECHO = false;
     new_mode.lflag.ECHONL = false;
     new_mode.lflag.ICANON = false;
-    new_mode.lflag.ISIG = false;
+    new_mode.lflag.ISIG = true;
     new_mode.lflag.IEXTEN = false;
     new_mode.cflag.CSIZE = .CS8;
     new_mode.cflag.PARENB = false;
