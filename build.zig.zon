@@ -1,0 +1,22 @@
+.{
+    .name = .zimer,
+    .version = "0.0.0",
+    .fingerprint = 0xd5e0607b354e1956, // Changing this has security and trust implications.
+    .minimum_zig_version = "0.15.2",
+    .dependencies = .{
+        //.example = .{
+        //    .url = "https://example.com/foo.tar.gz",
+        //    .hash = "...",
+        //
+        //    .path = "foo",
+        //},
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+        // For example...
+        //"LICENSE",
+        //"README.md",
+    },
+}
