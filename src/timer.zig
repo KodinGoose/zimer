@@ -1,6 +1,21 @@
 const std = @import("std");
 
+var exit = false;
+
+fn signalHandler(sig: std.posix.SIG) callconv(.c) void {
+    switch (sig) {
+        .INT => exit = true,
+        .TERM => exit = true,
+        else => {},
+    }
+}
+
 pub fn main() !void {
+    const sigset_t: std.posix.sigset_t = std.mem.zeroes(std.posix.sigset_t);
+    const sig_action = std.posix.Sigaction{ .handler = .{ .handler = signalHandler }, .mask = sigset_t, .flags = 0 };
+    std.posix.sigaction(.INT, &sig_action, null);
+    std.posix.sigaction(.TERM, &sig_action, null);
+
     var io_bullshit = std.Io.Threaded.init_single_threaded;
     const io = io_bullshit.io();
 
@@ -53,7 +68,6 @@ pub fn main() !void {
     var clock = std.Io.Clock.boot;
     const start_time = clock.now(io);
     var frame_start_time = start_time;
-    var exit = false;
     while (!exit) {
         while (true) {
             var input_buf: [256]u8 = undefined;
