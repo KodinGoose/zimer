@@ -1,18 +1,20 @@
 const std = @import("std");
 
 pub fn main() !void {
+    var io_bullshit = std.Io.Threaded.init_single_threaded;
+    const io = io_bullshit.io();
+
     var stdout_buf: [4096]u8 = undefined;
-    var stdout_writer = std.fs.File.stdout().writer(&stdout_buf);
+    var stdout_writer = std.Io.File.stdout().writer(io, &stdout_buf);
     const stdout = &stdout_writer.interface;
     defer stdout.flush() catch {};
 
-    var stderr_buf: [4096]u8 = undefined;
-    var stderr_writer = std.fs.File.stderr().writer(&stderr_buf);
+    var stderr_writer = std.Io.File.stderr().writer(io, &.{});
     const stderr = &stderr_writer.interface;
     defer stderr.flush() catch {};
 
     var stdin_buf: [4096]u8 = undefined;
-    var stdin_reader = std.fs.File.stdin().reader(&stdin_buf);
+    var stdin_reader = std.Io.File.stdin().reader(io, &stdin_buf);
     const stdin = &stdin_reader.interface;
 
     const start_mode = try std.posix.tcgetattr(std.posix.STDIN_FILENO);
@@ -43,13 +45,14 @@ pub fn main() !void {
     new_mode.cc[@intFromEnum(std.posix.V.MIN)] = 0;
     new_mode.cc[@intFromEnum(std.posix.V.TIME)] = 0;
 
+    try std.posix.tcsetattr(std.posix.STDIN_FILENO, .FLUSH, new_mode);
+
     try stdout.writeAll("Press \"q\" to exit\r\n");
     defer stdout.writeAll(&[_]u8{ 0x1B, 'M', 0x1B, '[', '2', 'K' }) catch {};
 
-    try std.posix.tcsetattr(std.posix.STDIN_FILENO, .FLUSH, new_mode);
-
-    const start_nanotime = std.time.nanoTimestamp();
-    var frame_start_time = start_nanotime;
+    var clock = std.Io.Clock.boot;
+    const start_time = clock.now(io);
+    var frame_start_time = start_time;
     var exit = false;
     while (!exit) {
         while (true) {
@@ -62,26 +65,25 @@ pub fn main() !void {
             }
             if (bytes_read < stdin_buf.len) break;
         }
-        const passed_nanotime = std.time.nanoTimestamp() - start_nanotime;
+        const passed_time = start_time.untilNow(io, clock);
         {
             // The theoretical maximum amount of bytes the hours can take up is 26 bytes
             // The length of the string minus the length of the hours is 14
             var out_buf: [14 + 26]u8 = undefined;
             const print_buf = std.fmt.bufPrint(&out_buf, "Time: {d}:{d:02}:{d:02}\r\n", .{
-                @as(u128, @intCast(@abs(@divTrunc(passed_nanotime, std.time.ns_per_hour)))),
-                @as(u128, @intCast(@abs(@mod(@divTrunc(passed_nanotime, std.time.ns_per_min), 60)))),
-                @as(u128, @intCast(@abs(@mod(@divTrunc(passed_nanotime, std.time.ns_per_s), 60)))),
+                @as(u96, @intCast(@abs(@divTrunc(passed_time.nanoseconds, std.time.ns_per_hour)))),
+                @as(u96, @intCast(@abs(@mod(@divTrunc(passed_time.nanoseconds, std.time.ns_per_min), 60)))),
+                @as(u96, @intCast(@abs(@mod(@divTrunc(passed_time.nanoseconds, std.time.ns_per_s), 60)))),
             }) catch unreachable;
             try stdout.writeAll(print_buf);
         }
         // Flush output before sleeping
         try stdout.flush();
-        // This division never results in a negative number unless the user sets the system clock back
-        const frame_passed_time = std.time.nanoTimestamp() -% frame_start_time;
-        if (frame_passed_time < std.time.ns_per_ms * 10 and frame_passed_time >= 0) {
-            std.Thread.sleep(std.time.ns_per_ms * 10 - @as(u64, @intCast(frame_passed_time)));
+        const frame_passed_time = frame_start_time.untilNow(io, clock);
+        if (frame_passed_time.nanoseconds < std.time.ns_per_ms * 10 and frame_passed_time.nanoseconds >= 0) {
+            try std.Io.sleep(io, std.Io.Duration.fromNanoseconds(std.time.ns_per_ms * 10 - frame_passed_time.nanoseconds), clock);
         }
         try stdout.writeAll(&[_]u8{ 0x1B, 'M', 0x1B, '[', '2', 'K' });
-        frame_start_time = std.time.nanoTimestamp();
+        frame_start_time = clock.now(io);
     }
 }
